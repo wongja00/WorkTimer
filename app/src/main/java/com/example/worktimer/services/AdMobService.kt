@@ -3,26 +3,43 @@ package com.example.worktimer.services
 import android.app.Activity
 import android.content.Context
 import android.util.Log
+import androidx.test.uiautomator.v18.BuildConfig
 import com.google.android.gms.ads.*
 import com.google.android.gms.ads.interstitial.InterstitialAd
 import com.google.android.gms.ads.interstitial.InterstitialAdLoadCallback
 import com.google.android.gms.ads.rewarded.RewardedAd
 import com.google.android.gms.ads.rewarded.RewardedAdLoadCallback
+import com.google.android.ump.ConsentInformation
+import com.google.android.ump.ConsentRequestParameters
+import com.google.android.ump.UserMessagingPlatform
+
 
 class AdMobService(private val context: Context) {
 
     companion object {
         private const val TAG = "AdMobService"
 
-        // 테스트 광고 ID들 (실제 배포시에는 본인의 광고 ID로 변경)
-        const val BANNER_AD_UNIT_ID = "ca-app-pub-3940256099942544/6300978111"
-        const val INTERSTITIAL_AD_UNIT_ID = "ca-app-pub-3940256099942544/1033173712"
-        const val REWARDED_AD_UNIT_ID = "ca-app-pub-3940256099942544/5224354917"
+        // 🔥 실제 배포용 광고 ID (AdMob 콘솔에서 발급받은 ID로 교체)
+        private const val IS_DEBUG = BuildConfig.DEBUG
 
-        // 실제 배포시 광고 ID 예시:
-        // const val BANNER_AD_UNIT_ID = "ca-app-pub-XXXXXXXXXXXXXXXX/XXXXXXXXXX"
-        // const val INTERSTITIAL_AD_UNIT_ID = "ca-app-pub-XXXXXXXXXXXXXXXX/XXXXXXXXXX"
-        // const val REWARDED_AD_UNIT_ID = "ca-app-pub-XXXXXXXXXXXXXXXX/XXXXXXXXXX"
+        // 테스트/실제 광고 ID 분기
+        val BANNER_AD_UNIT_ID = if (IS_DEBUG) {
+            "ca-app-pub-3940256099942544/6300978111" // 테스트 ID
+        } else {
+            "ca-app-pub-5787012535588341/5725061780" // 실제 ID
+        }
+
+        val INTERSTITIAL_AD_UNIT_ID = if (IS_DEBUG) {
+            "ca-app-pub-3940256099942544/1033173712" // 테스트 ID
+        } else {
+            "ca-app-pub-5787012535588341/8089971870" // 실제 ID
+        }
+
+        val REWARDED_AD_UNIT_ID = if (IS_DEBUG) {
+            "ca-app-pub-3940256099942544/5224354917" // 테스트 ID
+        } else {
+            "ca-app-pub-5787012535588341/4625369581" // 실제 ID
+        }
     }
 
     private var interstitialAd: InterstitialAd? = null
@@ -31,6 +48,12 @@ class AdMobService(private val context: Context) {
     fun initialize() {
         MobileAds.initialize(context) { initializationStatus ->
             Log.d(TAG, "AdMob 초기화 완료: ${initializationStatus.adapterStatusMap}")
+
+            // 실제 광고 사용 시 추가 설정
+            if (!IS_DEBUG) {
+                setupAdRequestConfiguration()
+            }
+
         }
 
         // 전면 광고 미리 로드
@@ -38,6 +61,16 @@ class AdMobService(private val context: Context) {
 
         // 보상형 광고 미리 로드
         loadRewardedAd()
+    }
+
+    private fun setupAdRequestConfiguration() {
+        // 실제 광고 요청 시 추가 설정
+        val configuration = RequestConfiguration.Builder()
+            .setTagForChildDirectedTreatment(RequestConfiguration.TAG_FOR_CHILD_DIRECTED_TREATMENT_FALSE)
+            .setTagForUnderAgeOfConsent(RequestConfiguration.TAG_FOR_UNDER_AGE_OF_CONSENT_FALSE)
+            .build()
+
+        MobileAds.setRequestConfiguration(configuration)
     }
 
     // 배너 광고 생성
@@ -236,6 +269,43 @@ class AdMobService(private val context: Context) {
             onAdClosed?.invoke()
             loadRewardedAd()
         }
+    }
+
+    // 광고 요청 시 추가 파라미터
+    private fun createAdRequest(): AdRequest {
+        return AdRequest.Builder()
+            .build()
+    }
+
+    // 실제 광고 사용 시 수익 추적 (간단 버전)
+    fun trackAdRevenue(adUnitId: String, estimatedRevenue: Double = 0.0) {
+        // 간단한 로깅 (실제로는 Firebase Analytics 등 사용)
+        Log.d(TAG, "광고 수익 추정: ${estimatedRevenue} from $adUnitId")
+
+        // 여기에 분석 도구 연동 코드 추가 가능
+        // 예: Firebase Analytics, Adjust, AppsFlyer 등
+    }
+
+    // 실제 광고 사용 시 주의사항 체크
+    fun validateAdSetup(): Boolean {
+        val isValid = when {
+            // 테스트 ID 사용 중인지 확인
+            BANNER_AD_UNIT_ID.contains("3940256099942544") && !IS_DEBUG -> {
+                Log.w(TAG, "⚠️ 경고: 실제 배포에서 테스트 광고 ID 사용 중!")
+                false
+            }
+            // 앱 ID 확인
+            !context.packageName.contains("example") -> {
+                Log.d(TAG, "✅ 정상: 실제 패키지명 사용 중")
+                true
+            }
+            else -> {
+                Log.w(TAG, "⚠️ 경고: 예제 패키지명 사용 중")
+                false
+            }
+        }
+
+        return isValid
     }
 
     // 광고 로드 상태 확인
