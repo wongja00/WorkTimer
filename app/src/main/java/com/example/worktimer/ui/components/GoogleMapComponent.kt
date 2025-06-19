@@ -9,6 +9,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import com.example.worktimer.data.LatLng as CustomLatLng
+import com.example.worktimer.data.DailyRoute  // <- 이 import 추가
 import com.google.android.gms.maps.model.LatLng as GoogleLatLng
 import com.example.worktimer.utils.LocationUtils.toGoogleLatLng
 import com.google.android.gms.maps.CameraUpdateFactory
@@ -16,6 +17,7 @@ import com.google.android.gms.maps.GoogleMap
 import com.google.android.gms.maps.MapView
 import com.google.android.gms.maps.OnMapReadyCallback
 import com.google.android.gms.maps.model.*
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
@@ -28,7 +30,8 @@ fun GoogleMapComponent(
     mapType: String = "normal",
     modifier: Modifier = Modifier
 ) {
-    val mapView = remember { MapView(androidx.compose.ui.platform.LocalContext.current) }
+    val context = LocalContext.current
+    val mapView = remember { MapView(context) }
     val lifecycleOwner = LocalLifecycleOwner.current
 
     // 지도 생명주기 관리
@@ -152,13 +155,6 @@ private fun setupMap(
                     }
                 }
 
-                // 카메라를 첫 번째 포인트로 이동
-                val cameraPosition = CameraPosition.builder()
-                    .target(startPoint.latLng.toGoogleLatLng())
-                    .zoom(13f)
-                    .build()
-
-                googleMap.animateCamera(CameraUpdateFactory.newCameraPosition(cameraPosition))
                 // 모든 마커가 보이도록 카메라 조정
                 val boundsBuilder = LatLngBounds.builder()
                 sortedPoints.forEach { point ->
@@ -188,39 +184,8 @@ private fun setupMap(
                         )
                     )
                 }
-
-                // 모든 마커가 보이도록 카메라 조정
-                val boundsBuilder = LatLngBounds.builder()
-                sortedPoints.forEach { point ->
-                    boundsBuilder.include(
-                        com.google.android.gms.maps.model.LatLng(
-                            point.latLng.latitude,
-                            point.latLng.longitude
-                        )
-                    )
-                }
-
-                // 회사, 집 위치도 포함
-                workLocation?.let {
-                    boundsBuilder.include(
-                        com.google.android.gms.maps.model.LatLng(it.latitude, it.longitude)
-                    )
-                }
-                homeLocation?.let {
-                    boundsBuilder.include(
-                        com.google.android.gms.maps.model.LatLng(it.latitude, it.longitude)
-                    )
-                }
-            } else {
-                // 데이터가 없으면 기본 위치 (서울)
-                googleMap.animateCamera(
-                    CameraUpdateFactory.newLatLngZoom(
-                        GoogleLatLng(37.5665, 126.9780),
-                        10f
-                    )
-                )
             }
-        } ?: run {
+        } else {
             // 동선 데이터가 없으면 회사나 집 위치로 이동
             val defaultLocation = workLocation ?: homeLocation
             defaultLocation?.let { location ->
@@ -249,8 +214,9 @@ private fun setupMap(
             isMapToolbarEnabled = true
         }
     }
+}
 
-    private fun formatTime(timeMillis: Long): String {
-        val format = java.text.SimpleDateFormat("HH:mm", java.util.Locale.getDefault())
-        return format.format(java.util.Date(timeMillis))
-    }
+private fun formatTime(timeMillis: Long): String {
+    val format = java.text.SimpleDateFormat("HH:mm", java.util.Locale.getDefault())
+    return format.format(java.util.Date(timeMillis))
+}

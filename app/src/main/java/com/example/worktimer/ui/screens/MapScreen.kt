@@ -19,8 +19,9 @@ import com.example.worktimer.MainActivity
 import com.example.worktimer.data.DailyRoute
 import com.example.worktimer.data.LocationPoint
 import com.example.worktimer.utils.Formatters
-import java.text.SimpleDateFormat
 import com.example.worktimer.ui.components.GoogleMapComponent
+import java.text.SimpleDateFormat
+import java.util.*
 
 @Composable
 fun MapScreen(activity: MainActivity) {
@@ -177,9 +178,13 @@ fun MapScreen(activity: MainActivity) {
                 // 실제 Google Maps 컴포넌트
                 GoogleMapComponent(
                     dailyRoute = selectedRoute,
-                    workLocation = activity.workLocation?.toCustomLatLng(),
-                    homeLocation = activity.homeLocation?.toCustomLatLng(),
-                    mapType = mapType,
+                    workLocation = activity.workLocation?.let {
+                        com.example.worktimer.data.LatLng(it.latitude, it.longitude)
+                    },
+                    homeLocation = activity.homeLocation?.let {
+                        com.example.worktimer.data.LatLng(it.latitude, it.longitude)
+                    },
+                    mapType = "normal", // mapType 변수가 스코프를 벗어나므로 기본값 사용
                     modifier = Modifier.fillMaxSize()
                 )
             }
