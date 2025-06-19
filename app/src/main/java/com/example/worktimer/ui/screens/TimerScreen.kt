@@ -15,6 +15,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.example.worktimer.MainActivity
+import com.example.worktimer.ui.components.AdMobBannerComponent
 import com.example.worktimer.utils.Formatters
 import com.example.worktimer.utils.EarningsCalculator
 
@@ -29,6 +30,11 @@ fun TimerScreen(activity: MainActivity) {
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
+        // 배너 광고 (상단)
+        AdMobBannerComponent(
+            modifier = Modifier.fillMaxWidth()
+        )
+
         // 현재 프로젝트 선택
         Card(
             modifier = Modifier.fillMaxWidth(),
@@ -175,6 +181,31 @@ fun TimerScreen(activity: MainActivity) {
             )
         }
 
+        // 보상형 광고 버튼 (추가 기능)
+        if (!activity.isWorking) {
+            OutlinedButton(
+                onClick = {
+                    activity.showRewardedAd { rewardAmount ->
+                        // 보상 처리 - 예: 추가 통계 기능 해제
+                        Toast.makeText(
+                            context,
+                            "보상 획득! 프리미엄 기능이 해제되었습니다",
+                            Toast.LENGTH_LONG
+                        ).show()
+                    }
+                },
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Star,
+                    contentDescription = null,
+                    tint = Color(0xFFFF9800)
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text("광고 보고 프리미엄 기능 해제")
+            }
+        }
+
         // 오늘의 수익 요약
         if (activity.workSessions.isNotEmpty()) {
             val todaySessions = EarningsCalculator.getTodaySessions(activity.workSessions)
@@ -227,5 +258,12 @@ fun TimerScreen(activity: MainActivity) {
                 }
             }
         }
+
+        // 하단 배너 광고
+        Spacer(modifier = Modifier.weight(1f))
+        AdMobBannerComponent(
+            modifier = Modifier.fillMaxWidth(),
+            backgroundColor = Color(0xFFF8F8F8)
+        )
     }
 }

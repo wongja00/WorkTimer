@@ -111,9 +111,20 @@ dependencies {
 
     // 권한 처리 (Activity Result API)
     implementation("androidx.activity:activity-ktx:1.9.0")
+    implementation("androidx.activity:activity-compose:1.9.0")
+    implementation("androidx.fragment:fragment-ktx:1.6.2")
 
     // HTTP Client 대체 (Apache HttpComponents 충돌 방지)
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
+
+    // ==================== 광고 관련 의존성 ====================
+
+    // Google Mobile Ads (AdMob)
+    implementation("com.google.android.gms:play-services-ads:23.6.0")
+
+    // AdMob Mediation (선택사항 - 더 많은 광고 네트워크)
+    implementation("com.google.ads.mediation:facebook:6.16.0.0")
+    implementation("com.google.ads.mediation:unity:4.9.2.0")
 
     // ==================== 선택사항 ====================
     // 만약 더 고급 캘린더 기능이 필요하다면:

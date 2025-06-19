@@ -10,6 +10,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.example.worktimer.MainActivity
+import com.example.worktimer.ui.components.AdMobBannerComponent
+import com.example.worktimer.ui.components.CompactBannerAd
 import com.example.worktimer.utils.Formatters
 import com.example.worktimer.utils.EarningsCalculator
 
@@ -47,6 +49,12 @@ fun EarningsScreen(activity: MainActivity) {
                     )
                 }
             }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // 빈 상태에서도 광고 표시
+            AdMobBannerComponent(modifier = Modifier.fillMaxWidth())
+
             return
         }
 
@@ -110,6 +118,14 @@ fun EarningsScreen(activity: MainActivity) {
                 }
             }
 
+            // 첫 번째 광고 삽입
+            item {
+                CompactBannerAd(
+                    modifier = Modifier.fillMaxWidth(),
+                    showLabel = true
+                )
+            }
+
             // 프로젝트별 수익 분석
             item {
                 val projectEarnings = activity.workSessions
@@ -133,7 +149,7 @@ fun EarningsScreen(activity: MainActivity) {
                             modifier = Modifier.padding(bottom = 12.dp)
                         )
 
-                        projectEarnings.forEach { (projectName, earningsAndHours) ->
+                        projectEarnings.forEachIndexed { index, (projectName, earningsAndHours) ->
                             val (earnings, hours) = earningsAndHours
                             val avgRate = if (hours > 0) earnings / hours else 0.0
 
@@ -179,6 +195,16 @@ fun EarningsScreen(activity: MainActivity) {
                                     }
                                 }
                             }
+
+                            // 프로젝트 3개마다 광고 삽입
+                            if ((index + 1) % 3 == 0 && index < projectEarnings.size - 1) {
+                                Spacer(modifier = Modifier.height(8.dp))
+                                CompactBannerAd(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    showLabel = false
+                                )
+                                Spacer(modifier = Modifier.height(8.dp))
+                            }
                         }
                     }
                 }
@@ -222,6 +248,15 @@ fun EarningsScreen(activity: MainActivity) {
                         }
                     }
                 }
+            }
+
+            // 마지막 광고
+            item {
+                Spacer(modifier = Modifier.height(8.dp))
+                AdMobBannerComponent(
+                    modifier = Modifier.fillMaxWidth(),
+                    backgroundColor = Color(0xFFF0F8FF)
+                )
             }
         }
     }

@@ -1,6 +1,10 @@
 package com.example.worktimer.services
 
 import android.content.Context
+import android.content.Intent
+import androidx.activity.ComponentActivity
+import androidx.activity.result.ActivityResultLauncher
+import androidx.activity.result.contract.ActivityResultContracts
 import com.example.worktimer.data.WorkSession
 import com.google.android.gms.auth.api.signin.GoogleSignIn
 import com.google.android.gms.auth.api.signin.GoogleSignInClient
@@ -24,14 +28,30 @@ class GoogleSignInService {
     private lateinit var googleSignInClient: GoogleSignInClient
     private var driveService: Drive? = null
     private lateinit var context: Context
+    private var signInCallback: ((Boolean) -> Unit)? = null
+    private var signInLauncher: ActivityResultLauncher<Intent>? = null
 
-    fun setup(context: Context) {
-        this.context = context
+    fun setup(activity: ComponentActivity) {
+        this.context = activity
+
+        // Google Sign-In 옵션 설정
         val gso = GoogleSignInOptions.Builder(GoogleSignInOptions.DEFAULT_SIGN_IN)
             .requestEmail()
             .requestScopes(Scope(DriveScopes.DRIVE_FILE))
             .build()
-        googleSignInClient = GoogleSignIn.getClient(context, gso)
+        googleSignInClient = GoogleSignIn.getClient(activity, gso)
+
+        // Activity Result Launcher 등록
+        signInLauncher = activity.registerForActivityResult(
+            ActivityResultContracts.StartActivityForResult()
+        ) { result ->
+            handleSignInResult(result.data)
+        }
+
+        // 기존 계정이 있다면 드라이브 서비스 설정
+        getCurrentAccount()?.let { account ->
+            setupDriveService(account)
+        }
     }
 
     fun getCurrentAccount(): GoogleSignInAccount? {
@@ -39,8 +59,25 @@ class GoogleSignInService {
     }
 
     fun signIn(onResult: (Boolean) -> Unit) {
-        // Google Sign-In 구현 필요 (Activity Result API 사용)
-        onResult(false) // 임시
+        signInCallback = onResult
+        val signInIntent = googleSignInClient.signInIntent
+        signInLauncher?.launch(signInIntent) ?: run {
+            onResult(false)
+        }
+    }
+
+    private fun handleSignInResult(data: Intent?) {
+        try {
+            val task = GoogleSignIn.getSignedInAccountFromIntent(data)
+            val account = task.getResult(Exception::class.java)
+            setupDriveService(account)
+            signInCallback?.invoke(true)
+        } catch (e: Exception) {
+            e.printStackTrace()
+            signInCallback?.invoke(false)
+        } finally {
+            signInCallback = null
+        }
     }
 
     fun signOut(onComplete: () -> Unit) {
@@ -51,18 +88,23 @@ class GoogleSignInService {
     }
 
     private fun setupDriveService(account: GoogleSignInAccount) {
-        val credential = GoogleAccountCredential.usingOAuth2(
-            context, listOf(DriveScopes.DRIVE_FILE)
-        )
-        credential.selectedAccount = account.account
+        try {
+            val credential = GoogleAccountCredential.usingOAuth2(
+                context, listOf(DriveScopes.DRIVE_FILE)
+            )
+            credential.selectedAccount = account.account
 
-        driveService = Drive.Builder(
-            NetHttpTransport(),
-            GsonFactory(),
-            credential
-        )
-            .setApplicationName("WorkTimer")
-            .build()
+            driveService = Drive.Builder(
+                NetHttpTransport(),
+                GsonFactory(),
+                credential
+            )
+                .setApplicationName("WorkTimer")
+                .build()
+        } catch (e: Exception) {
+            e.printStackTrace()
+            driveService = null
+        }
     }
 
     suspend fun syncToCloud(workSessions: List<WorkSession>): Boolean {

@@ -10,6 +10,8 @@ import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.activity.result.ActivityResultLauncher
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.*
 import androidx.core.app.ActivityCompat
 import androidx.core.app.NotificationCompat
@@ -29,6 +31,8 @@ import com.google.android.gms.auth.api.signin.GoogleSignInAccount
 import com.google.gson.Gson
 import java.text.SimpleDateFormat
 import java.util.*
+import com.example.worktimer.services.AdMobService
+
 
 class MainActivity : ComponentActivity() {
     // Location Services
@@ -38,6 +42,16 @@ class MainActivity : ComponentActivity() {
 
     // Google Services
     private val googleSignInService = GoogleSignInService()
+
+    // AdMob 서비스 추가
+    private lateinit var adMobService: AdMobService
+    // 광고 표시 횟수 추적
+    private var workSessionCount = 0
+    private val AD_FREQUENCY = 3 // 3번째 작업 완료마다 광고 표시
+
+    // 권한 요청 런처들
+    private lateinit var locationPermissionLauncher: ActivityResultLauncher<Array<String>>
+    private lateinit var notificationPermissionLauncher: ActivityResultLauncher<String>
 
     // State variables
     var workSessions by mutableStateOf(listOf<WorkSession>())
@@ -74,17 +88,13 @@ class MainActivity : ComponentActivity() {
     companion object {
         private const val LOCATION_THRESHOLD = 100f // 100m
     }
-
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
         WindowCompat.setDecorFitsSystemWindows(window, false)
 
-        // 초기화
-        fusedLocationClient = LocationServices.getFusedLocationProviderClient(this)
-        createNotificationChannel()
-        setupLocationCallback()
-        googleSignInService.setup(this)
+        setupPermissionLaunchers()
+        initializeServices()
         loadSavedData()
 
         setContent {
@@ -92,6 +102,81 @@ class MainActivity : ComponentActivity() {
                 WorkTimerApp(this)
             }
         }
+    }
+
+    private fun setupPermissionLaunchers() {
+        // 위치 권한 요청 런처
+        locationPermissionLauncher = registerForActivityResult(
+            ActivityResultContracts.RequestMultiplePermissions()
+        ) { permissions ->
+            val fineLocationGranted = permissions[Manifest.permission.ACCESS_FINE_LOCATION] ?: false
+            val coarseLocationGranted = permissions[Manifest.permission.ACCESS_COARSE_LOCATION] ?: false
+
+            if (fineLocationGranted && coarseLocationGranted) {
+                startLocationUpdates()
+            }
+        }
+
+        // 알림 권한 요청 런처 (Android 13+)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            notificationPermissionLauncher = registerForActivityResult(
+                ActivityResultContracts.RequestPermission()
+            ) { isGranted ->
+                if (isGranted) {
+                    // 알림 권한이 허용됨
+                }
+            }
+        }
+    }
+
+    private fun initializeServices() {
+        // 기존 서비스 초기화
+        fusedLocationClient = LocationServices.getFusedLocationProviderClient(this)
+        createNotificationChannel()
+        setupLocationCallback()
+
+        // Google Sign-In 서비스 초기화 (Activity Result API 사용)
+        googleSignInService.setup(this)
+
+        // AdMob 초기화
+        adMobService = AdMobService(this)
+        adMobService.initialize()
+
+        // 권한 요청
+        requestPermissionsIfNeeded()
+    }
+
+    private fun requestPermissionsIfNeeded() {
+        val permissionsToRequest = mutableListOf<String>()
+
+        // 위치 권한 확인
+        if (ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED ||
+            ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
+            permissionsToRequest.addAll(listOf(
+                Manifest.permission.ACCESS_FINE_LOCATION,
+                Manifest.permission.ACCESS_COARSE_LOCATION
+            ))
+        }
+
+        // 알림 권한 확인 (Android 13+)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            if (ActivityCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+                notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+            }
+        }
+
+        // 위치 권한 요청
+        if (permissionsToRequest.isNotEmpty()) {
+            locationPermissionLauncher.launch(permissionsToRequest.toTypedArray())
+        }
+    }
+
+    // 권한 요청을 위한 public 함수들
+    fun requestLocationPermissions() {
+        locationPermissionLauncher.launch(arrayOf(
+            Manifest.permission.ACCESS_FINE_LOCATION,
+            Manifest.permission.ACCESS_COARSE_LOCATION
+        ))
     }
 
     private fun loadSavedData() {
@@ -137,16 +222,9 @@ class MainActivity : ComponentActivity() {
         } catch (e: Exception) {
             listOf()
         }
-
         // 기본 프로젝트가 없으면 생성
         if (projects.isEmpty()) {
-            projects = listOf(
-                Project(
-                    name = "일반 업무",
-                    defaultHourlyRate = 15000.0,
-                    description = "기본 업무"
-                )
-            )
+            projects = createDefaultProjects()
             saveProjectsData()
         }
 
@@ -304,6 +382,7 @@ class MainActivity : ComponentActivity() {
         return results[0]
     }
 
+
     fun startWork() {
         if (!isWorking && currentProject != null) {
             isWorking = true
@@ -342,10 +421,16 @@ class MainActivity : ComponentActivity() {
             saveTimerState()
             stopLocationUpdates()
 
+            // 광고 표시 로직
+            workSessionCount++
+            if (workSessionCount % AD_FREQUENCY == 0) {
+                showInterstitialAd()
+            }
+
             // 클라우드 동기화
             if (googleSignInService.getCurrentAccount() != null) {
                 lifecycleScope.launch {
-                    googleSignInService.syncToCloud(workSessions)
+                    syncToCloud()
                 }
             }
         }
@@ -415,13 +500,7 @@ class MainActivity : ComponentActivity() {
         val prefs = getSharedPreferences("work_timer", Context.MODE_PRIVATE)
         prefs.edit().clear().apply()
         workSessions = listOf()
-        projects = listOf(
-            Project(
-                name = "일반 업무",
-                defaultHourlyRate = 15000.0,
-                description = "기본 업무"
-            )
-        )
+        projects = createDefaultProjects()
         saveProjectsData()
     }
 
@@ -452,6 +531,29 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    // 기본 프로젝트 생성 함수 개선
+    private fun createDefaultProjects(): List<Project> {
+        return listOf(
+            Project(
+                name = "일반 업무",
+                defaultHourlyRate = 15000.0,
+                description = "기본 업무 프로젝트",
+                isActive = true
+            ),
+            Project(
+                name = "개발 프로젝트",
+                defaultHourlyRate = 25000.0,
+                description = "개발 관련 업무",
+                isActive = true
+            ),
+            Project(
+                name = "컨설팅",
+                defaultHourlyRate = 35000.0,
+                description = "컨설팅 업무",
+                isActive = false
+            )
+        )
+    }
     private fun createNotificationChannel() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val channel = NotificationChannel(
@@ -515,4 +617,40 @@ class MainActivity : ComponentActivity() {
         super.onDestroy()
         stopLocationUpdates()
     }
+
+
+    // 광고 관련 함수들 추가
+    fun showInterstitialAd() {
+        adMobService.showInterstitialAd(this) {
+            // 광고 닫힌 후 실행할 코드
+            showNotification("수고하셨습니다!", "오늘도 좋은 하루 되세요 😊")
+        }
+    }
+
+    fun showRewardedAd(onRewarded: (Int) -> Unit) {
+        adMobService.showRewardedAd(
+            activity = this,
+            onRewarded = { rewardAmount ->
+                onRewarded(rewardAmount)
+                showNotification("보상 획득!", "추가 기능이 해제되었습니다! 🎉")
+            }
+        ) {
+            // 광고 닫힌 후 실행할 코드
+        }
+    }
+    fun getAdMobService(): AdMobService = adMobService
+
+
+    fun deleteProject(projectId: String) {
+        projects = projects.filter { it.id != projectId }
+
+        // 현재 선택된 프로젝트가 삭제된 경우 다른 프로젝트로 변경
+        if (currentProject?.id == projectId) {
+            currentProject = projects.filter { it.isActive }.firstOrNull()
+        }
+
+        saveProjectsData()
+    }
+
+
 }

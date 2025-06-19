@@ -4,13 +4,14 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.delay
 import com.example.worktimer.MainActivity
 
 @Composable
 fun WorkTimerApp(activity: MainActivity) {
     var selectedTab by remember { mutableIntStateOf(0) }
-    val tabs = listOf("타이머", "기록", "수익성", "지도", "위치 설정", "계정")
+    val tabs = listOf("타이머", "기록", "수익성", "지도", "프로젝트", "위치설정", "계정")
 
     // 타이머 업데이트
     LaunchedEffect(activity.isWorking) {
@@ -30,7 +31,10 @@ fun WorkTimerApp(activity: MainActivity) {
             .fillMaxSize()
             .windowInsetsPadding(WindowInsets.systemBars)
     ) {
-        TabRow(selectedTabIndex = selectedTab) {
+        ScrollableTabRow(
+            selectedTabIndex = selectedTab,
+            edgePadding = 16.dp
+        ) {
             tabs.forEachIndexed { index, title ->
                 Tab(
                     selected = selectedTab == index,
@@ -39,7 +43,8 @@ fun WorkTimerApp(activity: MainActivity) {
                         Text(
                             title,
                             color = if (selectedTab == index) MaterialTheme.colorScheme.primary
-                            else MaterialTheme.colorScheme.onSurface
+                            else MaterialTheme.colorScheme.onSurface,
+                            style = MaterialTheme.typography.labelMedium
                         )
                     }
                 )
@@ -51,8 +56,9 @@ fun WorkTimerApp(activity: MainActivity) {
             1 -> HistoryScreen(activity)
             2 -> EarningsScreen(activity)
             3 -> MapScreen(activity)
-            4 -> LocationSettingScreen(activity)
-            5 -> AccountScreen(activity)
+            4 -> ProjectSettingsScreen(activity)
+            5 -> LocationSettingScreen(activity)
+            6 -> AccountScreen(activity)
         }
     }
 }
