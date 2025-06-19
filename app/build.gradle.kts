@@ -5,11 +5,11 @@ plugins {
 }
 
 android {
-    namespace = "com.example.worktimer"
+    namespace = "com.worktracker.tracker"
     compileSdk = 35
 
     defaultConfig {
-        applicationId = "com.example.worktimer"
+        applicationId = "com.worktracker.tracker"
         minSdk = 26
         targetSdk = 35
         versionCode = 1
